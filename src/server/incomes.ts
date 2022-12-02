@@ -56,6 +56,7 @@ export async function getIncomes() {
         id: true,
         amount: true,
         date: true,
+        note: true,
         Category: {
           select: {
             id: true,

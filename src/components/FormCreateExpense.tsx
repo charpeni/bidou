@@ -1,7 +1,6 @@
 import {
   Button,
   Group,
-  Loader,
   NumberInput,
   Select,
   Stack,
@@ -10,14 +9,12 @@ import {
 } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
 import { useForm, zodResolver } from "@mantine/form";
-import { CategoryType } from "@prisma/client";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { TypeOf, z } from "zod";
 import useCategories from "../hooks/useCategories";
 import notification from "../lib/notification";
 import { formatTransactionToSave } from "../utils/formatTransactionToSave";
-import AlertFetchError from "./AlertFetchError";
 
 const schema = z.object({
   amount: z.number(),
@@ -26,14 +23,18 @@ const schema = z.object({
   note: z.string().nullable(),
 });
 
-export default function FormCreateExpense() {
+export default function FormCreateExpense({
+  categories,
+}: {
+  categories: NonNullable<ReturnType<typeof useCategories>[0]>;
+}) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const theme = useMantineTheme();
 
-  const [categories, categoriesLoading, categoriesError] = useCategories(
-    CategoryType.Expense
-  );
+  // const [categories, categoriesLoading, categoriesError] = useCategories(
+  //   CategoryType.Expense
+  // );
 
   const form = useForm({
     initialValues: {
@@ -60,39 +61,41 @@ export default function FormCreateExpense() {
     if (response.ok) router.push("/expenses");
   };
 
-  if (categoriesError) return <AlertFetchError />;
-  if (categoriesLoading) return <Loader />;
+  // if (categoriesError) return <AlertFetchError />;
+  // if (categoriesLoading) return <Loader />;
 
   return (
     <form onSubmit={form.onSubmit((values) => handleSubmit(values))}>
-      <Stack spacing="xl" sx={{ maxWidth: theme.breakpoints.xs }}>
-        <NumberInput
-          formatter={(value) => value?.replace(",", ".")}
-          hideControls
-          label="Amount"
-          precision={2}
-          step="0.01"
-          {...form.getInputProps("amount")}
-        />
+      <Stack spacing="xl">
+        <Group grow>
+          <NumberInput
+            formatter={(value) => value?.replace(",", ".")}
+            hideControls
+            label="Amount"
+            precision={2}
+            step="0.01"
+            {...form.getInputProps("amount")}
+          />
 
-        <DatePicker
-          clearable={false}
-          firstDayOfWeek="sunday"
-          label="Date"
-          {...form.getInputProps("date")}
-        />
+          <DatePicker
+            clearable={false}
+            firstDayOfWeek="sunday"
+            label="Date"
+            {...form.getInputProps("date")}
+          />
 
-        <Select
-          data={categories
-            .filter((category) => category.Children.length === 0)
-            .map((category) => ({
-              group: category.Parent?.name,
-              label: category.name,
-              value: category.id,
-            }))}
-          label="Category"
-          {...form.getInputProps("categoryId")}
-        />
+          <Select
+            data={categories
+              .filter((category) => category.Children.length === 0)
+              .map((category) => ({
+                group: category.Parent?.name,
+                label: category.name,
+                value: category.id,
+              }))}
+            label="Category"
+            {...form.getInputProps("categoryId")}
+          />
+        </Group>
 
         <Textarea label="Note" {...form.getInputProps("note")} />
 

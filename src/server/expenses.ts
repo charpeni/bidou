@@ -62,6 +62,7 @@ export async function getExpenses() {
         id: true,
         amount: true,
         date: true,
+        note: true,
         Category: {
           select: {
             id: true,
@@ -71,6 +72,7 @@ export async function getExpenses() {
         },
       },
       orderBy: { date: "desc" },
+      take: 50,
     })
   );
 }

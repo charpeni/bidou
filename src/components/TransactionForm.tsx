@@ -1,25 +1,21 @@
 import {
   Button,
   Group,
-  Loader,
   NumberInput,
   Select,
   Stack,
   Textarea,
-  useMantineTheme,
 } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
 import { useForm, zodResolver } from "@mantine/form";
-import { CategoryType } from "@prisma/client";
 import dayjs from "dayjs";
-import { useRouter } from "next/router";
-import { useState } from "react";
-import { useSWRConfig } from "swr";
+import { useMemo, useState } from "react";
 import { TypeOf, z } from "zod";
-import useCategories from "../hooks/useCategories";
 import notification from "../lib/notification";
+import { ApiGetCategories } from "../server/categories";
+import { ApiUpdateExpense } from "../server/expenses";
+import { ApiUpdateIncome } from "../server/incomes";
 import { formatTransactionToSave } from "../utils/formatTransactionToSave";
-import AlertFetchError from "./AlertFetchError";
 
 const schema = z.object({
   amount: z.number(),
@@ -29,61 +25,80 @@ const schema = z.object({
 });
 
 interface Props {
-  expense: any;
+  categories: ApiGetCategories;
+  fetchSaveUrl: string;
+  onCancel: () => void;
+  onSuccess: (data: Transaction) => void;
+  transaction?: Transaction;
 }
 
-export default function FormUpdateExpense({ expense }: Props) {
-  const router = useRouter();
-  const { mutate } = useSWRConfig();
+export default function TransactionForm({
+  categories,
+  fetchSaveUrl,
+  onCancel,
+  onSuccess,
+  transaction,
+}: Props) {
   const [saving, setSaving] = useState(false);
-  const theme = useMantineTheme();
 
-  const [categories, categoriesLoading, categoriesError] = useCategories(
-    CategoryType.Expense
-  );
+  const initialValues = useMemo(() => {
+    if (transaction) {
+      return {
+        amount: transaction.amount / 100,
+        categoryId: transaction.categoryId,
+        date: dayjs(transaction.date).toDate(),
+        note: transaction.note || "",
+      };
+    }
+
+    return {
+      amount: undefined as unknown as number,
+      categoryId: "",
+      date: new Date(),
+      note: "",
+    };
+  }, [transaction]);
 
   const form = useForm({
-    initialValues: {
-      amount: expense.amount / 100,
-      categoryId: expense.Category.id,
-      date: dayjs(expense.date).toDate(),
-      note: expense.note || "",
-    },
+    initialValues,
     validate: zodResolver(schema),
   });
 
   const handleSubmit = async (data: TypeOf<typeof schema>) => {
     setSaving(true);
 
-    try {
-      await mutate(
-        `/api/expenses/${expense.id}`,
-        updateExpense(expense.id, data),
-        {
-          populateCache: (data) => ({
-            id: expense.id,
-            amount: data.amount,
-            Category: {
-              id: data.categoryId,
-            },
-            date: data.date,
-            note: data.note,
-          }),
-          revalidate: false,
-        }
-      );
-      notification("success");
-      router.push("/expenses");
-    } catch (error) {
-      console.error(error);
-      notification("error");
-    } finally {
-      setSaving(false);
-    }
-  };
+    const url = (() => {
+      if (transaction) return `${fetchSaveUrl}/${transaction.id}`;
+      return fetchSaveUrl;
+    })();
 
-  if (categoriesError) return <AlertFetchError />;
-  if (categoriesLoading) return <Loader />;
+    const response = await fetch(url, {
+      body: JSON.stringify(formatTransactionToSave(data)),
+      headers: { "Content-Type": "application/json" },
+      method: transaction ? "PUT" : "POST",
+    });
+
+    notification(response.ok ? "success" : "error");
+    setSaving(false);
+
+    if (response.ok) {
+      if (transaction) {
+        const { categoryId, ...newData } = (await response.json()) as
+          | ApiUpdateExpense
+          | ApiUpdateIncome;
+        onSuccess({ ...newData, Category: { id: categoryId } });
+      }
+    }
+
+    if (response.ok)
+      onSuccess({
+        ...data,
+        id: transaction?.id,
+        Category: {
+          id: data.categoryId,
+        },
+      });
+  };
 
   return (
     <form onSubmit={form.onSubmit((values) => handleSubmit(values))}>
@@ -124,22 +139,11 @@ export default function FormUpdateExpense({ expense }: Props) {
           <Button loading={saving} type="submit">
             Save
           </Button>
+          <Button disabled={saving} onClick={onCancel} variant="subtle">
+            Cancel
+          </Button>
         </Group>
       </Stack>
     </form>
   );
-}
-
-async function updateExpense(expenseId: string, data: TypeOf<typeof schema>) {
-  const response = await fetch(`/api/expenses/${expenseId}`, {
-    body: JSON.stringify(formatTransactionToSave(data)),
-    headers: { "Content-Type": "application/json" },
-    method: "PUT",
-  });
-
-  if (!response.ok) {
-    throw new Error(response.statusText);
-  }
-
-  return response.json();
 }

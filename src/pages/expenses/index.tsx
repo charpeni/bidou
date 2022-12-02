@@ -13,7 +13,6 @@ export default function Expenses() {
       </PageHeader>
 
       <Stack spacing="xl">
-        {/* TODO: Add filters */}
         <ExpensesList />
       </Stack>
     </MainLayout>

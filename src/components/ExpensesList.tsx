@@ -1,27 +1,33 @@
 import { Loader } from "@mantine/core";
+import { CategoryType } from "@prisma/client";
+import { useRouter } from "next/router";
 import useSWR from "swr";
 import { ApiGetExpenses } from "../server/expenses";
 import AlertFetchError from "./AlertFetchError";
-import ExpenseRow from "./ExpenseRow";
-import Table from "./Table";
+import TransactionsList from "./TransactionsList";
 
 export default function ExpensesList() {
-  const { data, error } = useSWR<ApiGetExpenses>("/api/expenses");
+  const { data, error, mutate } = useSWR<ApiGetExpenses>("/api/expenses");
+  const router = useRouter();
 
   if (error) return <AlertFetchError />;
   if (!data) return <Loader />;
 
+  function handleSaveSuccess(data: unknown) {
+    mutate(data, false);
+    // router.replace("/expenses");
+  }
+
   return (
     <>
-      {data?.map((value) => (
-        <Table key={value.title}>
-          <Table.TransactionHeader title={value.title} total={value.total} />
-          <Table.Body>
-            {value.transactions.map((transaction) => (
-              <ExpenseRow key={transaction.id} expense={transaction} />
-            ))}
-          </Table.Body>
-        </Table>
+      {data.map((value) => (
+        <TransactionsList
+          data={value}
+          key={value.title}
+          fetchSaveUrl="/api/expenses"
+          onSaveSuccess={handleSaveSuccess}
+          type={CategoryType.Expense}
+        />
       ))}
     </>
   );
